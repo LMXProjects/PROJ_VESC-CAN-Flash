@@ -18,7 +18,7 @@ class MIC():
             raise Exception("Unsupported OS: {}".format(os_name))    
         
         if not self.check_can_interface(self.interface, self.channel):
-            raise Exception("CAN interface not found: {} {}\nPlease check your PCAN connection".format(self.interface, self.channel))        
+            raise Exception("CAN interface not found: {}\nPlease check your PCAN connection".format(self.interface))        
         
         self.logger = logging.getLogger("pybldc")
         self.logger.setLevel(logging.INFO)

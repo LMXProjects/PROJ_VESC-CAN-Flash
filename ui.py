@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import QThread, Signal, QObject, Qt, QSize
 from PySide6.QtGui import QIcon, QIntValidator
+import resources_rc
 from mic import MIC
 import os
         
@@ -43,6 +44,7 @@ class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Run Process")
+        self.setWindowIcon(QIcon(":/LMX-Projects-Logo-Noir.ico"))
 
         self.layout = QVBoxLayout()
 
@@ -50,7 +52,7 @@ class MainWindow(QWidget):
         id_layout = QHBoxLayout()
         self.id_label = QLabel("Enter ID:")
         self.id_input = QLineEdit()
-        self.id_input.setValidator(QIntValidator())  # Restrict input to integers
+        self.id_input.setValidator(QIntValidator())
 
         id_layout.addWidget(self.id_label)
         id_layout.addWidget(self.id_input)
@@ -144,21 +146,6 @@ class MainWindow(QWidget):
         self.progress_bar.setRange(0, 0)
         self.progress_bar.setValue(0)
         self.run_button.setEnabled(True)
-
-        # msg_box = QMessageBox(self)
-        # msg_box.setWindowTitle("Upload Result")
-
-        # if success:
-        #     msg_box.setIcon(QMessageBox.Information)
-        #     msg_box.setText("✅ Firmware upload succeeded.")
-        # else:
-        #     msg_box.setIcon(QMessageBox.Critical)
-        #     if error:
-        #         msg_box.setText(f"❌ {error}")
-        #     else:
-        #         msg_box.setText("❌ Firmware upload failed.")
-
-        # msg_box.exec()
         
         if success:
             self.result_label.setText("✅ Firmware upload succeeded.")
