@@ -23,8 +23,15 @@ class UploadWorker(QObject):
     def run(self):
         try:
             mic = MIC(self.motor_id)
+            mic.setup_motor()
         except Exception as e:
             self.finished.emit(False, str(e))
+            return
+        
+        if not mic.ping():
+            self.finished.emit(False, "Motor not found, try another ID.")
+            mic.tear_down_motor()
+            del mic
             return
         
         result = False
@@ -37,16 +44,53 @@ class UploadWorker(QObject):
                 self.progress.emit(int(upload_progress))
             else:
                 result = upload_progress
+                
+        mic.tear_down_motor()
         del mic
-        self.finished.emit(result, "")        
+        self.finished.emit(result, "")    
+        
+class InfoWorker(QObject):
+    finished = Signal(bool, str)
+    infos = Signal(dict)
+    
+    def __init__(self, id):
+        super().__init__()
+        self.id = id
+        
+    def run(self):
+        mic = MIC(self.id)
+        
+        mic.setup_motor()
+        if not mic.ping():
+            self.finished.emit(False, "Motor not found, try another ID.")
+            mic.tear_down_motor()
+            del mic
+            return
+        mic.tear_down_motor()
+        
+        retrieved_info = mic.retrieve_info()
+        
+        if retrieved_info is None:
+            self.finished.emit(False, "Failed to retrieve information.")
+        else:
+            self.infos.emit(retrieved_info)  
+            self.finished.emit(True, "Information retrieved successfully.") 
         
 class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Run Process")
         self.setWindowIcon(QIcon(":/LMX-Projects-Logo-Noir.ico"))
+        
+        width = 800
+        height = 200
+        self.resize(width, height)
+        self.setMinimumSize(width, height)
 
-        self.layout = QVBoxLayout()
+        main_layout = QHBoxLayout()
+        
+        left_panel = QWidget()
+        self.left_layout = QVBoxLayout(left_panel)
 
         # ID input
         id_layout = QHBoxLayout()
@@ -93,14 +137,35 @@ class MainWindow(QWidget):
         self.result_label.setVisible(False)
 
         # Add widgets to layout
-        self.layout.addLayout(id_layout)
-        self.layout.addLayout(file_layout)
-        self.layout.addWidget(self.run_button)
-        self.layout.addWidget(self.progress_bar)
-        self.layout.addWidget(self.result_label)
+        self.left_layout.addLayout(id_layout)
+        self.left_layout.addLayout(file_layout)
+        self.left_layout.addWidget(self.run_button)
+        self.left_layout.addWidget(self.progress_bar)
+        self.left_layout.addWidget(self.result_label)
 
-        self.setLayout(self.layout)
         self.selected_file = ""
+        
+        right_panel = QWidget()
+        right_layout = QVBoxLayout(right_panel)
+
+        self.fw_label = QLabel("FW :")
+        self.hw_label = QLabel("HW :")
+        self.uuid_label = QLabel("UUID :")
+
+        self.update_button = QPushButton("Get Info")
+        self.update_button.clicked.connect(self.retrieve_info_labels)
+
+        right_layout.addWidget(self.fw_label)
+        right_layout.addWidget(self.hw_label)
+        right_layout.addWidget(self.uuid_label)
+        right_layout.addWidget(self.update_button)
+        right_layout.addStretch()
+
+        # Add left and right panels to main layout
+        main_layout.addWidget(left_panel, stretch=1)
+        main_layout.addWidget(right_panel, stretch=1)
+
+        self.setLayout(main_layout)
 
     def select_file(self):
         file_name, _ = QFileDialog.getOpenFileName(
@@ -139,21 +204,27 @@ class MainWindow(QWidget):
 
         self.upload_thread.started.connect(self.worker.run)
         self.upload_thread.start()
-        self.run_button.setEnabled(False)
+        self.update_button.setEnabled(False)
     
-    def upload_done(self, success: bool, error: str = None):
+    def upload_done(self, success: bool, message: str = None):
         self.progress_bar.hide()
         self.progress_bar.setRange(0, 0)
         self.progress_bar.setValue(0)
         self.run_button.setEnabled(True)
+        self.update_button.setEnabled(True)
         
         if success:
-            self.result_label.setText("✅ Firmware upload succeeded.")
-            self.result_label.setStyleSheet("QLabel { color: green; }")
-            self.result_label.setVisible(True)
+            if message:
+                self.result_label.setText(f"✅ {message}")
+                self.result_label.setStyleSheet("QLabel { color: green; }")
+                self.result_label.setVisible(True)
+            else:
+                self.result_label.setText("✅ Firmware upload succeeded.")
+                self.result_label.setStyleSheet("QLabel { color: green; }")
+                self.result_label.setVisible(True)
         else:
-            if error:
-                self.result_label.setText(f"❌ {error}")
+            if message:
+                self.result_label.setText(f"❌ {message}")
                 self.result_label.setStyleSheet("QLabel { color: red; }")
                 self.result_label.setVisible(True)
             else:
@@ -167,3 +238,35 @@ class MainWindow(QWidget):
 
     def update_progress(self, value):
         self.progress_bar.setValue(value)
+        
+    def retrieve_info_labels(self):
+        id_value = self.id_input.text()
+        if not id_value:
+            msg_box = QMessageBox(self)
+            msg_box.setWindowTitle("Fail to start upload")
+            msg_box.setIcon(QMessageBox.Warning)
+            msg_box.setText("Please enter a valid ID.")
+            msg_box.exec()
+            return
+        
+        self.progress_bar.show()
+        self.progress_bar.setRange(0, 0)
+
+        self.info_thread = QThread()
+        self.worker = InfoWorker(id_value)
+        self.worker.moveToThread(self.info_thread)
+        
+        self.worker.finished.connect(self.upload_done)
+        self.worker.infos.connect(self.update_info_labels)
+        self.worker.finished.connect(self.info_thread.quit)
+        self.worker.finished.connect(self.worker.deleteLater)
+        self.info_thread.finished.connect(self.info_thread.deleteLater)
+
+        self.info_thread.started.connect(self.worker.run)
+        self.info_thread.start()
+        self.run_button.setEnabled(False)
+        
+    def update_info_labels(self, retrieved_info):
+        self.fw_label.setText(f"FW : {retrieved_info['fw_version']} {retrieved_info['fw_status']}")
+        self.hw_label.setText(f"HW : {retrieved_info['hw_name']}")
+        self.uuid_label.setText(f"UUID : {retrieved_info['UUID']}")
