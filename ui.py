@@ -88,10 +88,8 @@ class MainWindow(QWidget):
 
         self.setWindowTitle("Run Process")
         if is_dark_theme():
-            print("Dark theme detected")
             self.setWindowIcon(QIcon(":light_icon.ico"))
         else:
-            print("Light theme detected")
             self.setWindowIcon(QIcon(":dark_icon.ico"))
 
         # Set the window size 
@@ -161,9 +159,6 @@ class MainWindow(QWidget):
 
         right_panel = QWidget()
         right_layout = QVBoxLayout(right_panel)
-
-        # Hide the right panel
-        right_panel.setVisible(False)
 
         self.fw_label = QLabel("FW :")
         self.hw_label = QLabel("HW :")
