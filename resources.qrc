@@ -1,5 +1,6 @@
 <RCC>
     <qresource prefix="/">
-        <file>LMX-Projects-Logo-Noir.ico</file>
+        <file alias="light_icon.ico">LMX-Projects-Logo-Blanc_Square.ico</file>
+        <file alias="dark_icon.ico">LMX-Projects-Logo-Noir_Square.ico</file>
     </qresource>
 </RCC>

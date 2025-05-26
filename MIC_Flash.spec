@@ -25,7 +25,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='MIC_Flash_v0.0',
+    name='LMX_PWT_FlashTool_v0.0',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -38,5 +38,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['LMX-Projects-Logo-Noir.ico'],
+    icon=['LMX-Projects-Logo-Blanc_Square.ico'],
 )
