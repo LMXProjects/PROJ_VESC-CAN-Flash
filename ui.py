@@ -9,12 +9,13 @@ from PySide6.QtGui import QIcon, QIntValidator
 import resources_rc
 from mic import MIC
 import os
-        
+
+
 class UploadWorker(QObject):
     progress = Signal(int)
     finished = Signal(bool, str)
     start_progress = Signal()
-    
+
     def __init__(self, firmware_path, motor_id):
         super().__init__()
         self.firmware_path = firmware_path
@@ -27,13 +28,13 @@ class UploadWorker(QObject):
         except Exception as e:
             self.finished.emit(False, str(e))
             return
-        
+
         if not mic.ping():
             self.finished.emit(False, "Motor not found, try another ID.")
             mic.tear_down_motor()
             del mic
             return
-        
+
         result = False
         first_update = True
         for upload_progress in mic.motor.upload(self.firmware_path):
@@ -44,22 +45,23 @@ class UploadWorker(QObject):
                 self.progress.emit(int(upload_progress))
             else:
                 result = upload_progress
-                
+
         mic.tear_down_motor()
         del mic
         self.finished.emit(result, "")    
-        
+
+
 class InfoWorker(QObject):
     finished = Signal(bool, str)
     infos = Signal(dict)
-    
+
     def __init__(self, id):
         super().__init__()
         self.id = id
-        
+
     def run(self):
         mic = MIC(self.id)
-        
+
         mic.setup_motor()
         if not mic.ping():
             self.finished.emit(False, "Motor not found, try another ID.")
@@ -67,28 +69,39 @@ class InfoWorker(QObject):
             del mic
             return
         mic.tear_down_motor()
-        
+
         retrieved_info = mic.retrieve_info()
-        
+
         if retrieved_info is None:
             self.finished.emit(False, "Failed to retrieve information.")
         else:
             self.infos.emit(retrieved_info)  
             self.finished.emit(True, "Information retrieved successfully.") 
-        
+
+
 class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
+
+        def is_dark_theme():
+            return self.palette().color(self.backgroundRole()).lightness() < 128
+
         self.setWindowTitle("Run Process")
-        self.setWindowIcon(QIcon(":/LMX-Projects-Logo-Noir.ico"))
-        
-        width = 800
+        if is_dark_theme():
+            print("Dark theme detected")
+            self.setWindowIcon(QIcon(":light_icon.ico"))
+        else:
+            print("Light theme detected")
+            self.setWindowIcon(QIcon(":dark_icon.ico"))
+
+        # Set the window size 
+        width = 400 # Adjusted without right panel, old = 800
         height = 200
         self.resize(width, height)
         self.setMinimumSize(width, height)
 
         main_layout = QHBoxLayout()
-        
+  
         left_panel = QWidget()
         self.left_layout = QVBoxLayout(left_panel)
 
@@ -116,7 +129,7 @@ class MainWindow(QWidget):
 
         file_layout.addWidget(self.file_path_edit)
         file_layout.addWidget(self.file_button)
-        
+
         # Progress bar
         self.progress_bar = QProgressBar()
         self.progress_bar.setValue(0)
@@ -126,7 +139,7 @@ class MainWindow(QWidget):
         # Run button
         self.run_button = QPushButton("Run")
         self.run_button.clicked.connect(self.start_upload)
-        
+
         # Result label
         self.result_label = QLabel()
         self.result_label.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
@@ -144,9 +157,13 @@ class MainWindow(QWidget):
         self.left_layout.addWidget(self.result_label)
 
         self.selected_file = ""
-        
+
+
         right_panel = QWidget()
         right_layout = QVBoxLayout(right_panel)
+
+        # Hide the right panel
+        right_panel.setVisible(False)
 
         self.fw_label = QLabel("FW :")
         self.hw_label = QLabel("HW :")
@@ -187,7 +204,7 @@ class MainWindow(QWidget):
             msg_box.setText("Please select a firmware file and enter a valid ID.")
             msg_box.exec()
             return
-        
+
         self.progress_bar.show()
         self.progress_bar.setRange(0, 0)
 
@@ -205,14 +222,14 @@ class MainWindow(QWidget):
         self.upload_thread.started.connect(self.worker.run)
         self.upload_thread.start()
         self.update_button.setEnabled(False)
-    
+
     def upload_done(self, success: bool, message: str = None):
         self.progress_bar.hide()
         self.progress_bar.setRange(0, 0)
         self.progress_bar.setValue(0)
         self.run_button.setEnabled(True)
         self.update_button.setEnabled(True)
-        
+
         if success:
             if message:
                 self.result_label.setText(f"✅ {message}")
@@ -231,14 +248,14 @@ class MainWindow(QWidget):
                 self.result_label.setText("❌ Firmware upload failed.")
                 self.result_label.setStyleSheet("QLabel { color: red; }")
                 self.result_label.setVisible(True)
-        
+
     def set_progress_mode(self):
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
 
     def update_progress(self, value):
         self.progress_bar.setValue(value)
-        
+
     def retrieve_info_labels(self):
         id_value = self.id_input.text()
         if not id_value:
@@ -248,14 +265,14 @@ class MainWindow(QWidget):
             msg_box.setText("Please enter a valid ID.")
             msg_box.exec()
             return
-        
+
         self.progress_bar.show()
         self.progress_bar.setRange(0, 0)
 
         self.info_thread = QThread()
         self.worker = InfoWorker(id_value)
         self.worker.moveToThread(self.info_thread)
-        
+
         self.worker.finished.connect(self.upload_done)
         self.worker.infos.connect(self.update_info_labels)
         self.worker.finished.connect(self.info_thread.quit)
@@ -265,7 +282,7 @@ class MainWindow(QWidget):
         self.info_thread.started.connect(self.worker.run)
         self.info_thread.start()
         self.run_button.setEnabled(False)
-        
+
     def update_info_labels(self, retrieved_info):
         self.fw_label.setText(f"FW : {retrieved_info['fw_version']} {retrieved_info['fw_status']}")
         self.hw_label.setText(f"HW : {retrieved_info['hw_name']}")
