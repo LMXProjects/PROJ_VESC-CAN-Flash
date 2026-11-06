@@ -3,3 +3,5 @@ __pycache__
 venv
 build
 dist
+custom_fw
+logs

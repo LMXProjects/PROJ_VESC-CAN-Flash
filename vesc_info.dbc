@@ -1,0 +1,82 @@
+VERSION ""
+
+
+NS_ :
+    NS_DESC_
+    CM_
+    BA_DEF_
+    BA_
+    VAL_
+    CAT_DEF_
+    CAT_
+    FILTER
+    BA_DEF_DEF_
+    EV_DATA_
+    ENVVAR_DATA_
+    SGTYPE_
+    SGTYPE_VAL_
+    BA_DEF_SGTYPE_
+    BA_SGTYPE_
+    SIG_TYPE_REF_
+    VAL_TABLE_
+    SIG_GROUP_
+    SIG_VALTYPE_
+    SIGTYPE_VALTYPE_
+    BO_TX_BU_
+    BA_DEF_REL_
+    BA_REL_
+    BA_DEF_DEF_REL_
+    BU_SG_REL_
+    BU_EV_REL_
+    BU_BO_REL_
+    SG_MUL_VAL_
+
+BS_:
+
+BU_: HOST VESC
+
+BO_ 2147485706 VESC_INFO_REQUEST_ID10: 7 HOST
+ SG_ SenderId : 0|8@1+ (1,0) [0|255] "" VESC
+ SG_ ProcessAndRespond : 8|8@1+ (1,0) [0|1] "" VESC
+ SG_ CommandId : 16|8@1+ (1,0) [0|255] "" VESC
+ SG_ Reserved : 24|32@1+ (1,0) [0|0] "" VESC
+
+BO_ 2147485790 VESC_INFO_REQUEST_ID94: 7 HOST
+ SG_ SenderId : 0|8@1+ (1,0) [0|255] "" VESC
+ SG_ ProcessAndRespond : 8|8@1+ (1,0) [0|1] "" VESC
+ SG_ CommandId : 16|8@1+ (1,0) [0|255] "" VESC
+ SG_ Reserved : 24|32@1+ (1,0) [0|0] "" VESC
+
+BO_ 2147485724 VESC_INFO_REQUEST_ID28: 7 HOST
+ SG_ SenderId : 0|8@1+ (1,0) [0|255] "" VESC
+ SG_ ProcessAndRespond : 8|8@1+ (1,0) [0|1] "" VESC
+ SG_ CommandId : 16|8@1+ (1,0) [0|255] "" VESC
+ SG_ Reserved : 24|32@1+ (1,0) [0|0] "" VESC
+
+BO_ 2147484928 VESC_INFO_RESPONSE_CHUNK: 8 VESC
+ SG_ FragmentOffset : 0|8@1+ (1,0) [0|255] "" HOST
+ SG_ Data0 : 8|8@1+ (1,0) [0|255] "" HOST
+ SG_ Data1 : 16|8@1+ (1,0) [0|255] "" HOST
+ SG_ Data2 : 24|8@1+ (1,0) [0|255] "" HOST
+ SG_ Data3 : 32|8@1+ (1,0) [0|255] "" HOST
+ SG_ Data4 : 40|8@1+ (1,0) [0|255] "" HOST
+ SG_ Data5 : 48|8@1+ (1,0) [0|255] "" HOST
+ SG_ Data6 : 56|8@1+ (1,0) [0|255] "" HOST
+
+BO_ 2147485440 VESC_INFO_RESPONSE_END: 6 VESC
+ SG_ DestId : 0|8@1+ (1,0) [0|255] "" HOST
+ SG_ ProcessAndRespond : 8|8@1+ (1,0) [0|1] "" HOST
+ SG_ TotalLengthHi : 16|8@1+ (1,0) [0|255] "" HOST
+ SG_ TotalLengthLo : 24|8@1+ (1,0) [0|255] "" HOST
+ SG_ Crc16Hi : 32|8@1+ (1,0) [0|255] "" HOST
+ SG_ Crc16Lo : 40|8@1+ (1,0) [0|255] "" HOST
+
+CM_ BU_ HOST "PC application (PROJ_VESC-CAN-Flash / mic.py MIC.retrieve_info) that polls a VESC controller for its firmware/hardware/UUID info.";
+CM_ BU_ VESC "A VESC/MIC motor controller answering an info poll over CAN.";
+
+CM_ BO_ 2147485706 "COMM_FW_VERSION poll sent to controller ID 10 (arbitration ID = 0x800 + 10 = 0x80A, CAN_PACKET_PROCESS_SHORT_BUFFER). Field layout confirmed against pybldc's own PROCESS_SHORT_BUFFER encoding (pybldc.py _send_implementation, len<=6 branch: [self._id, 0, *data]) -- mic.py sends 7 zero bytes, i.e. SenderId=0 (host identifies itself as controller 0), ProcessAndRespond=0 ('process at receiver and send a response'), CommandId=0 (VESC comm protocol COMM_FW_VERSION), Reserved padding=0. Controller replies with a VESC_INFO_RESPONSE_CHUNK/_END sequence.";
+CM_ BO_ 2147485790 "Same as VESC_INFO_REQUEST_ID10, addressed to controller ID 94 (0x800 + 94 = 0x85E).";
+CM_ BO_ 2147485724 "Same as VESC_INFO_REQUEST_ID10, addressed to controller ID 28 (0x800 + 28 = 0x81C).";
+
+CM_ BO_ 2147484928 "One CAN_PACKET_FILL_RX_BUFFER chunk of the COMM_FW_VERSION reply (arbitration ID fixed at 0x500 for every controller -- the ID encodes the destination address (host = 0), not the responding controller's own address, so it does NOT by itself identify which controller ID (10/94/28) sent it; the host only knows because it has exactly one poll outstanding at a time). Format is [FragmentOffset, Data0..Data6] -- confirmed against pybldc's CAN_PACKET_FILL_RX_BUFFER send logic (pybldc.py _send_implementation, 'Fill 7 bytes at a time': send_buffer=[i, *data[i:i+7]]). FragmentOffset is the byte offset, within the reassembled reply buffer, where this frame's 7 Data bytes begin; successive chunks carry FragmentOffset 0, 7, 14, 21, 28, 35, 42. mic.py reconstructs the reply by concatenating raw 8-byte frames (offset byte included) until VESC_INFO_RESPONSE_END, then slices fixed indices -- which is equivalent to, and here re-expressed as, per-chunk fields: FragmentOffset=0: Data0=CommandId echo (0x00), Data1=FW major version, Data2=FW minor version, Data3-Data6=HW name chars[0:4]. FragmentOffset=7: Data0-Data3=HW name chars[4:8], Data4=not decoded by mic.py (likely HW-name terminator/reserved), Data5-Data6=UUID bytes[0:2]. FragmentOffset=14: Data0-Data6=UUID bytes[2:9] (7 bytes). FragmentOffset=21: Data0-Data2=UUID bytes[9:12] (completes the 12-byte STM32 unique-chip ID -- this UUID IS what this tool/VESC ecosystem uses as the board's de-facto serial number; there is no separate SN field), Data3=not decoded by mic.py, Data4=FW status (0=STABLE, 1=BETA, 2=ALPHA), Data5-Data6=not decoded by mic.py. FragmentOffset=28/35/42: entirely outside what mic.py parses (real VESC firmware likely carries HW_TYPE, test-version number, pairing/config flags here per commands.c, unconfirmed in this codebase).";
+CM_ BO_ 2147485440 "End-of-transfer marker for a VESC_INFO_RESPONSE_CHUNK sequence (arbitration ID fixed at 0x700 for every controller, same addressing caveat as VESC_INFO_RESPONSE_CHUNK; this is CAN_PACKET_PROCESS_RX_BUFFER, ID = 7). mic.py only uses receipt of this ID as an 'end of buffer' signal and never reads its payload, so this 6-byte layout ([DestId, ProcessAndRespond, TotalLengthHi/Lo, Crc16Hi/Lo]) is INFERRED by symmetry with pybldc's own outbound PROCESS_RX_BUFFER encoding (pybldc.py _send_implementation, >6-byte branch: [self._id, 0, *pack_uint16(len(data)), *pack_uint16(crc16_ccitt(data))]), not empirically verified against a bus capture -- confirm with a real trace (e.g. candump/SavvyCAN) before relying on it.";
